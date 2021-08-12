@@ -51,9 +51,10 @@ def populate_next(window, ref_id, cand_ids, data):
 BUTTON_LABELS =  "pick1 pick2".split()
 def make_window():
     buttons = [sg.Button(l) for l in BUTTON_LABELS]
-    mlref = sg.Multiline("ref", key="reference")
-    mlc1 = sg.Multiline("c1", key="candidate1")
-    mlc2 = sg.Multiline("c2", key="candidate2")
+    mlref = sg.Multiline("ref", key="reference", disabled=True, size=(166, 10))
+    sz = (80, 10)
+    mlc1 = sg.Multiline("c1", key="candidate1", disabled=True, size =sz)
+    mlc2 = sg.Multiline("c2", key="candidate2", disabled=True, size=sz)
     layout = [
             [sg.Frame(title="reference", key="ref_frame", layout=[[mlref]])], 
             [
