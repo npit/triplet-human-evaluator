@@ -1,18 +1,33 @@
 import PySimpleGUI as sg
 import itertools
 import json
+import random
 import argparse
+import re
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-data_path", default="dummy_data.json")
-parser.add_argument("-required_evaluations_path", default="dummy_required_evaluations.json")
+parser.add_argument("-required_evaluations_path",
+                    default="dummy_required_evaluations.json")
 parser.add_argument("-results_path", default="results.json")
 args = parser.parse_args()
 
 with open(args.data_path) as f:
     data = json.load(f)
+    data = {k: re.sub("\n\n", "\n", v) for (k, v) in data.items()}
 with open(args.required_evaluations_path) as f:
     required_results = json.load(f)
+
+# if required values are not already combinations, generate them
+val = list(required_results.values())[0]
+if not all(len(x) == 2 and type(x) in (list, tuple) for x in val):
+    print("############################")
+    print("NOTE:Generating combinations from input requirements file")
+    print("############################")
+    for (k, v) in required_results.items():
+        required_results[k] = list(itertools.combinations(v, 2))
+        random.shuffle(required_results[k])
+
 try:
     with open(args.results_path) as f:
         results = json.load(f)
@@ -25,18 +40,28 @@ except FileNotFoundError as ex:
     print("Unable to read existing results:", str(ex))
     results = {}
 
+
 def make_tuple_id(id1, id2):
     return id1 + "_" + id2
 
+
 def get_next(data, required_results, results):
     """Fetch ids for next comparison"""
+    count = 0
+    ret = None
     for r in required_results:
         for v in required_results[r]:
             if r not in results:
                 results[r] = {}
             if make_tuple_id(*v) not in results[r]:
-                return r, v
-    return None
+                # return this, but keep counting
+                if ret is None:
+                    print(f"Fetching ref {r} vs {v}")
+                    ret = (r, v)
+                count += 1
+    print(f"Number of evaluations left: {count}")
+    return ret
+
 
 def populate_next(window, ref_id, cand_ids, data):
     ref = data[ref_id]
@@ -48,24 +73,29 @@ def populate_next(window, ref_id, cand_ids, data):
     window.Element("cand1_frame").update("Candidate 1 --  " + cand_ids[0])
     window.Element("cand2_frame").update("Candidate 2 --  " + cand_ids[1])
 
-BUTTON_LABELS =  "pick1 pick2".split()
+
+BUTTON_LABELS = "pick1 pick2".split()
+
+
 def make_window():
     buttons = [sg.Button(l) for l in BUTTON_LABELS]
     mlref = sg.Multiline("ref", key="reference", disabled=True, size=(166, 10))
     sz = (80, 10)
-    mlc1 = sg.Multiline("c1", key="candidate1", disabled=True, size =sz)
+    mlc1 = sg.Multiline("c1", key="candidate1", disabled=True, size=sz)
     mlc2 = sg.Multiline("c2", key="candidate2", disabled=True, size=sz)
     layout = [
-            [sg.Frame(title="reference", key="ref_frame", layout=[[mlref]])], 
-            [
-                sg.Frame(title=title, key=f"cand{t+1}_frame",layout=[[ml], [buttons[t]]])
-                for t, (title, ml) in enumerate(zip("candidate1 candidate2".split(), (mlc1, mlc2)))
-            ]
-            
+        [sg.Frame(title="reference", key="ref_frame", layout=[[mlref]])],
+        [
+            sg.Frame(
+                title=title, key=f"cand{t+1}_frame", layout=[[ml], [buttons[t]]])
+            for t, (title, ml) in enumerate(zip("candidate1 candidate2".split(), (mlc1, mlc2)))
         ]
+
+    ]
     window = sg.Window("Evaluation", layout)
     window.finalize()
     return window
+
 
 window = make_window()
 res = get_next(data, required_results, results)
@@ -91,7 +121,7 @@ while True:
         if res is None:
             print("Done!")
             break
-        current_ref_id, current_cand_ids = res 
+        current_ref_id, current_cand_ids = res
         populate_next(window, current_ref_id, current_cand_ids, data)
 
 window.close()
